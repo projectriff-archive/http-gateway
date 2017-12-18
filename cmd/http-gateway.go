@@ -19,7 +19,6 @@ package main
 import (
 	"context"
 	"log"
-	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -31,23 +30,6 @@ import (
 	"github.com/projectriff/http-gateway/pkg/replies"
 	"gopkg.in/Shopify/sarama.v1"
 )
-
-func startHttpServer(producer sarama.AsyncProducer, repliesMap *replies.RepliesMap) *http.Server {
-	srv := &http.Server{Addr: ":8080"}
-
-	http.HandleFunc("/messages/", handlers.MessageHandler(producer))
-	http.HandleFunc("/requests/", handlers.ReplyHandler(producer, repliesMap))
-	http.HandleFunc("/application/status", handlers.HealthHandler())
-
-	go func() {
-		if err := srv.ListenAndServe(); err != nil {
-			log.Printf("Httpserver: ListenAndServe() error: %s", err)
-		}
-	}()
-
-	log.Printf("Listening on %v", srv.Addr)
-	return srv
-}
 
 func main() {
 	// Trap signals to trigger a proper shutdown.
@@ -81,7 +63,7 @@ func main() {
 		go consumeNotifications(consumer)
 	}
 
-	srv := startHttpServer(producer, repliesMap)
+	srv := handlers.StartHttpServer(producer, repliesMap)
 
 MainLoop:
 	for {
