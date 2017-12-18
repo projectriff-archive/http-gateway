@@ -18,7 +18,6 @@ package main
 
 import (
 	"context"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -27,99 +26,18 @@ import (
 	"time"
 
 	"github.com/bsm/sarama-cluster"
+	"github.com/projectriff/http-gateway/pkg/handlers"
 	"github.com/projectriff/http-gateway/pkg/message"
 	"github.com/projectriff/http-gateway/pkg/replies"
-	"github.com/satori/go.uuid"
 	"gopkg.in/Shopify/sarama.v1"
 )
-
-const ContentType = "Content-Type"
-const Accept = "Accept"
-const CorrelationId = "correlationId"
-
-var incomingHeadersToPropagate = [...]string{ContentType, Accept}
-var outgoingHeadersToPropagate = [...]string{ContentType}
-
-// Function messageHandler creates an http handler that posts the http body as a message to Kafka, replying
-// immediately with a successful http response
-func messageHandler(producer sarama.AsyncProducer) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		topic := r.URL.Path[len("/messages/"):]
-		b, err := ioutil.ReadAll(r.Body)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		msg := message.Message{Payload: b, Headers: make(map[string]interface{})}
-		propagateIncomingHeaders(r, &msg)
-
-		bytesOut, err := message.EncodeMessage(msg)
-		if err != nil {
-			log.Printf("Error encoding message: %v", err)
-			return
-		}
-		kafkaMsg := &sarama.ProducerMessage{Topic: topic, Value: sarama.ByteEncoder(bytesOut)}
-
-		select {
-		case producer.Input() <- kafkaMsg:
-			w.Write([]byte("message published to topic: " + topic + "\n"))
-		}
-	}
-}
-
-// Function replyHandler creates an http handler that posts the http body as a message to Kafka, then waits
-// for a message on a go channel it creates for a reply (this is expected to be set by the main thread) and sends
-// that as an http response.
-func replyHandler(producer sarama.AsyncProducer, repliesMap *replies.RepliesMap) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		topic := r.URL.Path[len("/requests/"):]
-		b, err := ioutil.ReadAll(r.Body)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		correlationId := uuid.NewV4().String()
-		replyChan := make(chan message.Message)
-		repliesMap.Put(correlationId, replyChan)
-
-		msg := message.Message{Payload: b, Headers: make(map[string]interface{})}
-		propagateIncomingHeaders(r, &msg)
-		msg.Headers[CorrelationId] = correlationId
-
-		bytesOut, err := message.EncodeMessage(msg)
-		if err != nil {
-			log.Printf("Error encoding message: %v", err)
-			return
-		}
-		kafkaMsg := &sarama.ProducerMessage{Topic: topic, Value: sarama.ByteEncoder(bytesOut)}
-
-		select {
-		case producer.Input() <- kafkaMsg:
-			select {
-			case reply := <-replyChan:
-				repliesMap.Delete(correlationId)
-				p := reply.Payload
-				propagateOutgoingHeaders(&reply, w)
-				w.Write(p.([]byte)) // TODO equivalent of Spring's HttpMessageConverter handling
-			case <-time.After(time.Second * 60):
-				repliesMap.Delete(correlationId)
-				w.WriteHeader(404)
-			}
-		}
-	}
-}
-func healthHandler() func(http.ResponseWriter, *http.Request) {
-	return func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(`{"status":"UP"}`))
-	}
-}
 
 func startHttpServer(producer sarama.AsyncProducer, repliesMap *replies.RepliesMap) *http.Server {
 	srv := &http.Server{Addr: ":8080"}
 
-	http.HandleFunc("/messages/", messageHandler(producer))
-	http.HandleFunc("/requests/", replyHandler(producer, repliesMap))
-	http.HandleFunc("/application/status", healthHandler())
+	http.HandleFunc("/messages/", handlers.MessageHandler(producer))
+	http.HandleFunc("/requests/", handlers.ReplyHandler(producer, repliesMap))
+	http.HandleFunc("/application/status", handlers.HealthHandler())
 
 	go func() {
 		if err := srv.ListenAndServe(); err != nil {
@@ -129,27 +47,6 @@ func startHttpServer(producer sarama.AsyncProducer, repliesMap *replies.RepliesM
 
 	log.Printf("Listening on %v", srv.Addr)
 	return srv
-}
-
-func propagateIncomingHeaders(request *http.Request, message *message.Message) {
-	for _, h := range incomingHeadersToPropagate {
-		if v, ok := request.Header[h]; ok {
-			message.Headers[h] = v[0]
-		}
-	}
-}
-
-func propagateOutgoingHeaders(message *message.Message, response http.ResponseWriter) {
-	for _, h := range outgoingHeadersToPropagate {
-		if v, ok := message.Headers[h]; ok {
-			switch value := v.(type) {
-			case string:
-				response.Header()[h] = []string{value}
-			case []string:
-				response.Header()[h] = value
-			}
-		}
-	}
 }
 
 func main() {
