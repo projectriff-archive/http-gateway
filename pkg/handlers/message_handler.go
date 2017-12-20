@@ -11,8 +11,15 @@ import (
 
 // Creates an http handler that posts the http body as a message to Kafka, replying
 // immediately with a successful http response
-func MessageHandler(producer sarama.AsyncProducer) http.HandlerFunc {
+func MessageHandler(producer sarama.AsyncProducer, traceContext TraceContext) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		span, spanErr := traceContext.InitSpan()
+		if spanErr != nil {
+			log.Printf("Error initializing tracing span: %v", spanErr)
+			return
+		}
+		defer span.Finish()
+
 		topic := r.URL.Path[len("/messages/"):]
 		b, err := ioutil.ReadAll(r.Body)
 		if err != nil {
@@ -33,5 +40,6 @@ func MessageHandler(producer sarama.AsyncProducer) http.HandlerFunc {
 		case producer.Input() <- kafkaMsg:
 			w.Write([]byte("message published to topic: " + topic + "\n"))
 		}
+
 	}
 }

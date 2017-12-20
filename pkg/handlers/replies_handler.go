@@ -17,8 +17,15 @@ const CorrelationId = "correlationId"
 // Creates an http handler that posts the http body as a message to Kafka, then waits
 // for a message on a go channel it creates for a reply (this is expected to be set by the main thread) and sends
 // that as an http response.
-func ReplyHandler(producer sarama.AsyncProducer, repliesMap *replies.RepliesMap) http.HandlerFunc {
+func ReplyHandler(producer sarama.AsyncProducer, repliesMap *replies.RepliesMap, traceContext TraceContext) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		span, spanErr := traceContext.InitSpan()
+		if spanErr != nil {
+			log.Printf("Error initializing tracing span: %v", spanErr)
+			return
+		}
+		defer span.Finish()
+
 		topic := r.URL.Path[len("/requests/"):]
 		b, err := ioutil.ReadAll(r.Body)
 		if err != nil {
