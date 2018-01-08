@@ -55,11 +55,11 @@
   version = "v0.1.1"
 
 [[projects]]
-  branch = "issue_33"
+  branch = "master"
   name = "github.com/projectriff/function-sidecar"
   packages = ["pkg/dispatcher","pkg/wireformat"]
-  revision = "c263618f41bd55ca4ff0f95bf30c07cf723f4217"
-  source = "github.com/ericbottard/function-sidecar"
+  revision = "bec62989766783fa3be6fcece8e8401fa1dabf62"
+  source = "github.com/projectriff/function-sidecar"
 
 [[projects]]
   branch = "master"
