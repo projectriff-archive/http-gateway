@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package replies
+package main
 
 import (
 	"testing"
@@ -24,9 +24,9 @@ import (
 
 func TestPutAndGet(t *testing.T) {
 	testChannel := make(chan dispatcher.Message)
-	repliesMap := NewRepliesMap()
-	repliesMap.Put("testkey1", testChannel)
-	returnedChannel := repliesMap.Get("testkey1")
+	repliesMap := newRepliesMap()
+	repliesMap.put("testkey1", testChannel)
+	returnedChannel := repliesMap.get("testkey1")
 	if testChannel != returnedChannel {
 		t.Fatal("Expected identical channels: ", testChannel, returnedChannel)
 	}
@@ -34,11 +34,11 @@ func TestPutAndGet(t *testing.T) {
 
 func TestDelete(t *testing.T) {
 	testChannel := make(chan dispatcher.Message)
-	repliesMap := NewRepliesMap()
-	repliesMap.Put("testkey2", testChannel)
-	repliesMap.Delete("testkey2")
+	repliesMap := newRepliesMap()
+	repliesMap.put("testkey2", testChannel)
+	repliesMap.delete("testkey2")
 
-	returnedChannel := repliesMap.Get("testkey2")
+	returnedChannel := repliesMap.get("testkey2")
 	if returnedChannel != nil {
 		t.Fatal("Expected nil but got a channel: ", returnedChannel)
 	}

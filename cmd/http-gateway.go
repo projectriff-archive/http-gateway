@@ -27,8 +27,6 @@ import (
 	"github.com/Shopify/sarama"
 	"github.com/bsm/sarama-cluster"
 	"github.com/projectriff/function-sidecar/pkg/wireformat"
-	"github.com/projectriff/http-gateway/pkg/handlers"
-	"github.com/projectriff/http-gateway/pkg/replies"
 )
 
 func main() {
@@ -37,7 +35,7 @@ func main() {
 	signal.Notify(signals, os.Interrupt, syscall.SIGTERM, os.Kill)
 
 	// Key is correlationId, value is channel used to pass message received from main Kafka consumer loop
-	repliesMap := replies.NewRepliesMap()
+	repliesMap := newRepliesMap()
 
 	brokers := []string{os.Getenv("SPRING_CLOUD_STREAM_KAFKA_BINDER_BROKERS")}
 	producer, err := sarama.NewAsyncProducer(brokers, nil)
@@ -63,7 +61,7 @@ func main() {
 		go consumeNotifications(consumer)
 	}
 
-	srv := handlers.StartHttpServer(producer, repliesMap)
+	srv := startHttpServer(producer, repliesMap)
 
 MainLoop:
 	for {
@@ -83,9 +81,9 @@ MainLoop:
 					log.Println("Failed to extract message ", err)
 					break
 				}
-				correlationId, ok := messageWithHeaders.Headers()[handlers.CorrelationId]
+				correlationId, ok := messageWithHeaders.Headers()[CorrelationId]
 				if ok {
-					c := repliesMap.Get(correlationId[0])
+					c := repliesMap.get(correlationId[0])
 					if c != nil {
 						log.Printf("Sending %v\n", messageWithHeaders)
 						c <- messageWithHeaders

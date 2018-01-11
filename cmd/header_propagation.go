@@ -1,4 +1,4 @@
-package handlers
+package main
 
 import (
 	"net/http"
@@ -12,7 +12,7 @@ const Accept = "Accept"
 var incomingHeadersToPropagate = [...]string{ContentType, Accept}
 var outgoingHeadersToPropagate = [...]string{ContentType}
 
-func PropagateIncomingHeaders(request *http.Request, message dispatcher.Message) {
+func propagateIncomingHeaders(request *http.Request, message dispatcher.Message) {
 	for _, h := range incomingHeadersToPropagate {
 		if v, ok := request.Header[h]; ok {
 			(message.Headers())[h] = v
@@ -20,7 +20,7 @@ func PropagateIncomingHeaders(request *http.Request, message dispatcher.Message)
 	}
 }
 
-func PropagateOutgoingHeaders(message dispatcher.Message, response http.ResponseWriter) {
+func propagateOutgoingHeaders(message dispatcher.Message, response http.ResponseWriter) {
 	for _, h := range outgoingHeadersToPropagate {
 		if v, ok := message.Headers()[h]; ok {
 			response.Header()[h] = v

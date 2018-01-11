@@ -25,7 +25,7 @@ test: build
 .arch-linux: vendor
 
 $(OUTPUT): $(GO_SOURCES) vendor
-	go build cmd/http-gateway.go
+	go build -o http-gateway cmd/*.go
 
 $(OUTPUT_LINUX): $(GO_SOURCES) vendor
 	# This builds the executable from Go sources on *your* machine, targeting Linux OS

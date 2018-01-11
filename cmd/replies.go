@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package replies
+package main
 
 import (
 	"sync"
@@ -28,24 +28,24 @@ type RepliesMap struct {
 	lock sync.RWMutex
 }
 
-func (replies *RepliesMap) Delete(key string) {
+func (replies *RepliesMap) delete(key string) {
 	replies.lock.Lock()
 	defer replies.lock.Unlock()
 	delete(replies.m, key)
 }
 
-func (replies *RepliesMap) Get(key string) chan<- dispatcher.Message {
+func (replies *RepliesMap) get(key string) chan<- dispatcher.Message {
 	replies.lock.RLock()
 	defer replies.lock.RUnlock()
 	return replies.m[key]
 }
 
-func (replies *RepliesMap) Put(key string, value chan<- dispatcher.Message) {
+func (replies *RepliesMap) put(key string, value chan<- dispatcher.Message) {
 	replies.lock.Lock()
 	defer replies.lock.Unlock()
 	replies.m[key] = value
 }
 
-func NewRepliesMap() *RepliesMap {
+func newRepliesMap() *RepliesMap {
 	return &RepliesMap{make(map[string]chan<- dispatcher.Message), sync.RWMutex{}}
 }

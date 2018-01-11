@@ -1,4 +1,4 @@
-package handlers
+package main
 
 import (
 	"io/ioutil"
@@ -11,7 +11,7 @@ import (
 
 // Creates an http handler that posts the http body as a message to Kafka, replying
 // immediately with a successful http response
-func MessageHandler(producer sarama.AsyncProducer) http.HandlerFunc {
+func messageHandler(producer sarama.AsyncProducer) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		topic := r.URL.Path[len("/messages/"):]
 		b, err := ioutil.ReadAll(r.Body)
@@ -20,7 +20,7 @@ func MessageHandler(producer sarama.AsyncProducer) http.HandlerFunc {
 			return
 		}
 		msg := dispatcher.NewMessage(b, make(map[string][]string))
-		PropagateIncomingHeaders(r, msg)
+		propagateIncomingHeaders(r, msg)
 
 		kafkaMsg, err := wireformat.ToKafka(msg)
 		kafkaMsg.Topic = topic
