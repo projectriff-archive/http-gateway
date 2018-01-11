@@ -25,13 +25,13 @@ test: build
 .arch-linux: vendor
 
 $(OUTPUT): $(GO_SOURCES) vendor
-	go build cmd/http-gateway.go
+	go build -o http-gateway cmd/*.go
 
 $(OUTPUT_LINUX): $(GO_SOURCES) vendor
 	# This builds the executable from Go sources on *your* machine, targeting Linux OS
 	# and linking everything statically, to minimize Docker image size
 	# See e.g. https://blog.codeship.com/building-minimal-docker-containers-for-go-applications/ for details
-	CGO_ENABLED=0 GOOS=linux go build $(BUILD_FLAGS) -v -a -installsuffix cgo -o $(OUTPUT_LINUX) cmd/http-gateway.go
+	CGO_ENABLED=0 GOOS=linux go build $(BUILD_FLAGS) -v -a -installsuffix cgo -o $(OUTPUT_LINUX) cmd/*.go
 
 vendor: Gopkg.toml
 	dep ensure
