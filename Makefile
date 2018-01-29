@@ -15,6 +15,10 @@ $(OUTPUT): $(GO_SOURCES) vendor
 vendor: Gopkg.toml
 	dep ensure
 
+gen-mocks: $(GO_SOURCES)
+	go get -u github.com/vektra/mockery/.../
+	go generate ./...
+
 clean:
 	rm -f $(OUTPUT)
 
