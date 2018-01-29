@@ -28,16 +28,23 @@ import (
 	"os"
 )
 
-const CorrelationId = "correlationId"
+const (
+	CorrelationId = "correlationId"
+	requestPath   = "/requests/"
+)
 
 var outgoingHeadersToPropagate = [...]string{ContentType}
 
 // Function RequestHandler creates an http handler that sends the http body to the producer, then waits
 // for a message on a go channel it creates for a reply (this is expected to be set by the main thread) and sends
 // that as an http response.
-func RequestHandler(producer transport.Producer, replies *replies_map.RepliesMap) http.HandlerFunc {
+func RequestHandler(producer transport.Producer, replies *replies_map.RepliesMap, timeout time.Duration) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		topic := r.URL.Path[len("/requests/"):]
+		topic, err := parseTopic(r, requestPath)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
 
 		b, err := ioutil.ReadAll(r.Body)
 		if err != nil {
@@ -63,7 +70,7 @@ func RequestHandler(producer transport.Producer, replies *replies_map.RepliesMap
 			replies.Delete(correlationId)
 			propagateOutgoingHeaders(reply, w)
 			w.Write(reply.Payload())
-		case <-time.After(time.Second * 60):
+		case <-time.After(timeout):
 			replies.Delete(correlationId)
 			w.WriteHeader(404)
 		}
@@ -79,11 +86,13 @@ func propagateOutgoingHeaders(message dispatcher.Message, response http.Response
 }
 
 func ReplyHandler(signals chan os.Signal, consumer transport.Consumer, replies *replies_map.RepliesMap, producer transport.Producer) {
+	consumerMessages := consumer.Messages()
+	producerErrors := producer.Errors()
 	for {
 		select {
 		case <-signals:
 			return
-		case msg, ok := <-consumer.Messages():
+		case msg, ok := <-consumerMessages:
 			if ok {
 				correlationId, ok := msg.Headers()[CorrelationId]
 				if ok {
@@ -96,9 +105,8 @@ func ReplyHandler(signals chan os.Signal, consumer transport.Consumer, replies *
 					}
 				}
 			}
-		case err := <-producer.Errors():
+		case err := <-producerErrors:
 			log.Println("Failed to send message ", err)
 		}
 	}
 }
-

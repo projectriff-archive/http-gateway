@@ -35,7 +35,7 @@ func startHttpServer(producer transport.Producer, replies *replies_map.RepliesMa
 	srv := &http.Server{Addr: ":8080"}
 
 	http.HandleFunc("/messages/", handler.MessageHandler(producer))
-	http.HandleFunc("/requests/", handler.RequestHandler(producer, replies))
+	http.HandleFunc("/requests/", handler.RequestHandler(producer, replies, time.Second * 60))
 	http.HandleFunc("/application/status", handler.HealthHandler())
 
 	go func() {

@@ -1,5 +1,5 @@
 /*
- * Copyright 2018 the original author or authors.
+ * Copyright 2017 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,22 +13,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package transport
+
+package handler
 
 import (
-	"io"
-	"github.com/projectriff/function-sidecar/pkg/dispatcher"
+	"fmt"
+	"net/http"
 )
 
-//go:generate mockery -name=Producer -output mocktransport -outpkg mocktransport -testonly
-type Producer interface {
-	io.Closer
-	Send(topic string, message dispatcher.Message) error
-	Errors() <-chan error
-}
-
-//go:generate mockery -name=Consumer -output mocktransport -outpkg mocktransport -testonly
-type Consumer interface {
-	io.Closer
-	Messages() <-chan dispatcher.Message
+func parseTopic(r *http.Request, path string) (string, error) {
+	if len(r.URL.Path) < len(path) || r.URL.Path[:len(path)] != path {
+		return "", fmt.Errorf("Unknown path: %s", r.URL.Path)
+	}
+	return r.URL.Path[len(path):], nil
 }

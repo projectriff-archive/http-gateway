@@ -25,6 +25,7 @@ import (
 )
 
 const (
+	messagePath = "/messages/"
 	ContentType = "Content-Type"
 	Accept      = "Accept"
 )
@@ -35,7 +36,11 @@ var incomingHeadersToPropagate = [...]string{ContentType, Accept}
 // immediately with a successful http response.
 func MessageHandler(producer transport.Producer) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		topic := r.URL.Path[len("/messages/"):]
+		topic, err := parseTopic(r, messagePath)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
 
 		b, err := ioutil.ReadAll(r.Body)
 		if err != nil {
