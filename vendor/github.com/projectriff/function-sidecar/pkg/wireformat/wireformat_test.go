@@ -33,7 +33,7 @@ func TestMessageWithOnlyPayload(t *testing.T) {
 }
 
 func TestMessageWithOnlyHeaders(t *testing.T) {
-	msg := dispatcher.NewMessage(nil, map[string][]string{"key1":{"value1"}, "k2":{"18.0"}})
+	msg := dispatcher.NewMessage(nil, map[string][]string{"key1":{"value1"}, "k2":{"18.0", "other"}})
 	encodeThenDecode(msg, t)
 }
 

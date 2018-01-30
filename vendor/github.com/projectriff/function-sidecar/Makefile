@@ -41,19 +41,15 @@ clean:
 test: build
 	go test -v ./...
 
-grpc: $(GRPC_DIR)/fntypes/fntypes.pb.go $(GRPC_DIR)/function/function.pb.go
+grpc: $(GRPC_DIR)/function/function.pb.go
 
-$(GRPC_DIR)/fntypes/fntypes.pb.go: $(GRPC_DIR)/fntypes/fntypes.proto
-	protoc -I $(GRPC_DIR)/fntypes fntypes.proto --go_out=$(GRPC_DIR)/fntypes
-$(GRPC_DIR)/function/function.pb.go: $(GRPC_DIR)/function/function.proto $(GRPC_DIR)/fntypes/fntypes.pb.go
-	protoc -I $(GRPC_DIR)/fntypes -I $(GRPC_DIR)/function function.proto --go_out=Mfntypes.proto=github.com/projectriff/function-sidecar/pkg/dispatcher/grpc/fntypes,plugins=grpc:$(GRPC_DIR)/function
+$(GRPC_DIR)/function/function.pb.go: $(GRPC_DIR)/function/function.proto
+	protoc -I $(GRPC_DIR)/function $(GRPC_DIR)/function/function.proto --go_out=plugins=grpc:$(GRPC_DIR)/function
 
 fetch-grpc:
-	rm -f $(GRPC_DIR)/fntypes/*.proto $(GRPC_DIR)/function/*.proto
-	wget https://raw.githubusercontent.com/projectriff/function-proto/master/fntypes.proto \
-		-P $(GRPC_DIR)/fntypes
+	rm -f $(GRPC_DIR)/function/*.proto
 	wget https://raw.githubusercontent.com/projectriff/function-proto/master/function.proto \
 	     -P $(GRPC_DIR)/function
 
 dockerize: build-for-docker
-	docker build . -t projectriff/function-sidecar:0.0.2-snapshot
+	docker build . -t projectriff/function-sidecar:0.0.3
