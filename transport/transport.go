@@ -16,19 +16,16 @@
 package transport
 
 import (
-	"io"
 	"github.com/projectriff/function-sidecar/pkg/dispatcher"
 )
 
-//go:generate mockery -name=Producer -output mocktransport -outpkg mocktransport -testonly
+//go:generate mockery -name=Producer -output mocktransport -outpkg mocktransport
 type Producer interface {
-	io.Closer
 	Send(topic string, message dispatcher.Message) error
 	Errors() <-chan error
 }
 
-//go:generate mockery -name=Consumer -output mocktransport -outpkg mocktransport -testonly
+//go:generate mockery -name=Consumer -output mocktransport -outpkg mocktransport
 type Consumer interface {
-	io.Closer
 	Messages() <-chan dispatcher.Message
 }
