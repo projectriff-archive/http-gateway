@@ -29,6 +29,8 @@ const (
 	Accept      = "Accept"
 )
 
+var incomingHeadersToPropagate = [...]string{ContentType, Accept}
+
 // Function messageHandler is an http handler that sends the http body to the producer, replying
 // immediately with a successful http response.
 func(g *gateway) messagesHandler(w http.ResponseWriter, r *http.Request) {
@@ -52,9 +54,6 @@ func(g *gateway) messagesHandler(w http.ResponseWriter, r *http.Request) {
 
 	fmt.Fprintf(w, "Message published to topic: %s\n", topic)
 }
-
-
-var incomingHeadersToPropagate = [...]string{ContentType, Accept}
 
 func propagateIncomingHeaders(request *http.Request) dispatcher.Headers {
 	header := make(dispatcher.Headers)

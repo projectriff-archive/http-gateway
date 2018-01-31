@@ -14,13 +14,12 @@
  * limitations under the License.
  */
 
-package handler_test
+package handler
 
 import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"github.com/projectriff/http-gateway/pkg/handler"
 	"net/http/httptest"
 	"net/http"
 )
@@ -39,7 +38,7 @@ var _ = Describe("HealthHandler", func() {
 	})
 
 	JustBeforeEach(func() {
-		handler.HealthHandler()(mockResponseWriter, req)
+		healthHandler(mockResponseWriter, req)
 	})
 
 	It("should return Ok", func() {

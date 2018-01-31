@@ -33,7 +33,7 @@ var outgoingHeadersToPropagate = [...]string{ContentType}
 
 // Function requestHandler is an http handler that sends the http body to the producer, then waits
 // for a message on a go channel it creates for a reply and sends that as an http response.
-func (g *gateway) repliesHandler(w http.ResponseWriter, r *http.Request) {
+func (g *gateway) requestsHandler(w http.ResponseWriter, r *http.Request) {
 		topic, err := parseTopic(r, requestPath)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusNotFound)

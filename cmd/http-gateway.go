@@ -24,6 +24,7 @@ import (
 	"github.com/projectriff/http-gateway/transport/kafka"
 	"github.com/projectriff/http-gateway/pkg/handler"
 	"log"
+	"time"
 )
 
 func main() {
@@ -41,7 +42,7 @@ func main() {
 	}
 	defer consumer.Close()
 
-	gw := handler.New(8080, producer, consumer)
+	gw := handler.New(8080, producer, consumer, 60 * time.Second)
 
 	closeCh := make(chan struct{})
 	gw.Run(closeCh)

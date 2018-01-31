@@ -22,7 +22,6 @@ import (
 	"net/http"
 	"fmt"
 	"github.com/projectriff/http-gateway/transport"
-	"github.com/projectriff/http-gateway/pkg/replies_map"
 	"io"
 	"context"
 )
@@ -35,24 +34,23 @@ type gateway struct {
 	httpServer *http.Server
 	consumer   transport.Consumer
 	producer   transport.Producer
-	replies    *replies_map.RepliesMap
+	replies    *repliesMap
 	timeout    time.Duration
 }
 
 func (g *gateway) Run(stop <-chan struct{}) {
 	go func() {
 		log.Printf("Listening on %v", g.httpServer.Addr)
-		if err := g.httpServer.ListenAndServe(); err != nil {
+		if err := g.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed{
 			panic(err)
 		}
 	}()
 
-	go g.repliesLoop()
-	go g.waitForClose(stop)
+	go g.repliesLoop(stop)
 
 }
 
-func (g *gateway) repliesLoop() {
+func (g *gateway) repliesLoop(stop <-chan struct{}) {
 	consumerMessages := g.consumer.Messages()
 	producerErrors := g.producer.Errors()
 	for {
@@ -74,26 +72,24 @@ func (g *gateway) repliesLoop() {
 			}
 		case err := <-producerErrors:
 			log.Println("Failed to send message ", err)
+		case <- stop:
+			if pCloseable, ok := g.producer.(io.Closer); ok {
+				pCloseable.Close()
+			}
+			if cCloseable, ok := g.consumer.(io.Closer); ok {
+				cCloseable.Close()
+			}
+			timeout, c := context.WithTimeout(context.Background(), 1*time.Second)
+			defer c()
+			if err := g.httpServer.Shutdown(timeout); err != nil {
+				panic(err) // failure/timeout shutting down the server gracefully
+			}
 		}
+
 	}
 }
 
-func (g *gateway) waitForClose(stop <-chan struct{}) {
-	<-stop
-	if pCloseable, ok := g.producer.(io.Closer); ok {
-		pCloseable.Close()
-	}
-	if cCloseable, ok := g.consumer.(io.Closer); ok {
-		cCloseable.Close()
-	}
-	timeout, c := context.WithTimeout(context.Background(), 1*time.Second)
-	defer c()
-	if err := g.httpServer.Shutdown(timeout); err != nil {
-		panic(err) // failure/timeout shutting down the server gracefully
-	}
-}
-
-func New(port int, producer transport.Producer, consumer transport.Consumer) *gateway {
+func New(port int, producer transport.Producer, consumer transport.Consumer, timeout time.Duration) *gateway {
 	mux := http.NewServeMux()
 	httpServer := &http.Server{Addr: fmt.Sprintf(":%v", port),
 		Handler: mux,
@@ -101,11 +97,11 @@ func New(port int, producer transport.Producer, consumer transport.Consumer) *ga
 	g := gateway{httpServer: httpServer,
 		producer: producer,
 		consumer: consumer,
-		replies: replies_map.NewRepliesMap(),
-		timeout: 60 * time.Second,
+		replies: newRepliesMap(),
+		timeout: timeout,
 	}
-	mux.HandleFunc("/messages", g.messagesHandler)
-	mux.HandleFunc("/requests", g.messagesHandler)
+	mux.HandleFunc(messagePath, g.messagesHandler)
+	mux.HandleFunc(requestPath, g.requestsHandler)
 	mux.HandleFunc("/application/status", healthHandler)
 
 	return &g

@@ -14,44 +14,69 @@
  * limitations under the License.
  */
 
-package handler_test
+package handler
 
 import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/projectriff/http-gateway/transport/mocktransport"
-	"github.com/projectriff/http-gateway/pkg/handler"
-	"net/http"
-	"io/ioutil"
-	"strings"
-	"net/http/httptest"
-	"errors"
+
 	"github.com/stretchr/testify/mock"
+	"io/ioutil"
+	"github.com/projectriff/http-gateway/transport/mocktransport"
+	"net/http/httptest"
+	"strings"
+	"net/http"
+	"errors"
 	"github.com/projectriff/function-sidecar/pkg/dispatcher"
+	"time"
 )
 
-var _ = Describe("MessageHandler", func() {
+var _ = Describe("RequestsHandler", func() {
 
 	const errorMessage = "doh!"
 
 	var (
 		mockProducer       *mocktransport.Producer
+		mockConsumer       *mocktransport.Consumer
 		mockResponseWriter *httptest.ResponseRecorder
 		req                *http.Request
 		testError          error
+		consumerMessages   chan dispatcher.Message
+		producerErrors     chan error
+		timeout            time.Duration
+		gateway            *gateway
+		done               chan struct{}
 	)
 
 	BeforeEach(func() {
 		mockProducer = new(mocktransport.Producer)
+		mockConsumer = new(mocktransport.Consumer)
 		req = httptest.NewRequest("GET", "http://example.com", nil)
-		req.URL.Path = "/messages/testtopic"
+		req.URL.Path = "/requests/testtopic"
 		mockResponseWriter = httptest.NewRecorder()
 		testError = errors.New(errorMessage)
+		timeout = time.Second * 60
+
+		consumerMessages = make(chan dispatcher.Message, 1)
+		var cMsg <-chan dispatcher.Message = consumerMessages
+		mockConsumer.On("Messages").Return(cMsg)
+
+		producerErrors = make(chan error, 0)
+		var pErr <-chan error = producerErrors
+		mockProducer.On("Errors").Return(pErr)
+
+		done = make(chan struct{})
 
 	})
 
 	JustBeforeEach(func() {
-		handler.MessageHandler(mockProducer)(mockResponseWriter, req)
+		gateway = New(8080, mockProducer, mockConsumer, timeout)
+		go gateway.repliesLoop(done)
+		gateway.requestsHandler(mockResponseWriter, req)
+	})
+
+	AfterEach(func() {
+		done <- struct{}{}
 	})
 
 	Context("when the request URL is unexpected", func() {
@@ -86,24 +111,27 @@ var _ = Describe("MessageHandler", func() {
 
 		Context("when sending succeeds", func() {
 			BeforeEach(func() {
-				mockProducer.On("Send", mock.AnythingOfType("string"), mock.Anything).Return(nil)
+				mockProducer.On("Send", mock.AnythingOfType("string"), mock.Anything).Run(func(args mock.Arguments) {
+					msg, ok := args[1].(dispatcher.Message)
+					Expect(ok).To(BeTrue())
+					consumerMessages <- dispatcher.NewMessage([]byte(""), msg.Headers())
+				}).Return(nil)
 			})
 
 			It("should send one message to the producer", func() {
-				Expect(len(mockProducer.Calls)).To(Equal(1))
-				Expect(mockProducer.Calls[0].Method).To(Equal("Send"))
+				Expect(sendIndex(mockProducer)).To(BeNumerically(">", -1))
 			})
 
 			It("should send to the correct topic", func() {
-				Expect(mockProducer.Calls[0].Arguments[0]).To(Equal("testtopic"))
+				Expect(mockProducer.Calls[sendIndex(mockProducer)].Arguments[0]).To(Equal("testtopic"))
 			})
 
 			It("should send a message containing the correct body", func() {
 				Expect(string(sentMessage(mockProducer).Payload())).To(Equal("body"))
 			})
 
-			It("should send a message with no headers", func() {
-				Expect(sentMessage(mockProducer).Headers()).To(BeEmpty())
+			It("should send a message with a correlation id header", func() {
+				Expect(sentMessage(mockProducer).Headers()).To(HaveKey("correlationId"))
 			})
 
 			Context("when the request contains some headers that should be propagated and some that should not", func() {
@@ -141,23 +169,63 @@ var _ = Describe("MessageHandler", func() {
 				Expect(string(body)).To(HavePrefix(errorMessage))
 			})
 		})
+
+		Context("when sending succeeds but the reply takes too long", func() {
+			BeforeEach(func() {
+				timeout = time.Nanosecond
+				mockProducer.On("Send", mock.AnythingOfType("string"), mock.Anything).Return(nil)
+			})
+
+			It("should time out with a 404", func() {
+				resp := mockResponseWriter.Result()
+				Expect(resp.StatusCode).To(Equal(http.StatusNotFound))
+			})
+		})
+
+		Context("when sending succeeds but the producer reports an error before the reply comes back", func() {
+			BeforeEach(func() {
+				mockProducer.On("Send", mock.AnythingOfType("string"), mock.Anything).Run(func(args mock.Arguments) {
+					msg, ok := args[1].(dispatcher.Message)
+					Expect(ok).To(BeTrue())
+
+					producerErrors <- testError
+
+					consumerMessages <- dispatcher.NewMessage([]byte(""), msg.Headers())
+				}).Return(nil)
+			})
+
+			It("should reply with OK", func() {
+				resp := mockResponseWriter.Result()
+				Expect(resp.StatusCode).To(Equal(http.StatusOK))
+			})
+		})
+
+		Context("when sending succeeds but a reply comes back with the wrong correlation id", func() {
+			BeforeEach(func() {
+				timeout = 10 * time.Millisecond
+				mockProducer.On("Send", mock.AnythingOfType("string"), mock.Anything).Run(func(args mock.Arguments) {
+					headers := make(dispatcher.Headers)
+					headers["correlationId"] = []string{""}
+					consumerMessages <- dispatcher.NewMessage([]byte(""), headers)
+				}).Return(nil)
+			})
+
+			It("should time out with a 404", func() {
+				resp := mockResponseWriter.Result()
+				Expect(resp.StatusCode).To(Equal(http.StatusNotFound))
+			})
+		})
 	})
 })
 
-func sentMessage(mockProducer *mocktransport.Producer) dispatcher.Message {
-	msg, ok := mockProducer.Calls[sendIndex(mockProducer)].Arguments[1].(dispatcher.Message)
-	Expect(ok).To(BeTrue())
-	return msg
-}
-
-type badReader struct {
-	readErr error
-}
-
-func (br *badReader) Read(p []byte) (n int, err error) {
-	return 0, br.readErr
-}
-
-func (*badReader) Close() error {
-	return nil
+func sendIndex(mockProducer *mocktransport.Producer) int {
+	index := -1
+	for i := 0; i < len(mockProducer.Calls); i++ {
+		if mockProducer.Calls[i].Method == "Send" {
+			Expect(index).To(Equal(-1))
+			index = i
+		}
+	}
+	Expect(index).NotTo(Equal(-1))
+	return index
 }
