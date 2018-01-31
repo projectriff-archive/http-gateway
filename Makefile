@@ -1,7 +1,7 @@
 .PHONY: build clean dockerize test
 OUTPUT = http-gateway
 
-GO_SOURCES = $(shell find cmd -type f -name '*.go')
+GO_SOURCES = $(shell find cmd transport pkg -type f -name '*.go')
 TAG = 0.0.4-snapshot
 
 build: $(OUTPUT)

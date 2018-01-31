@@ -17,46 +17,16 @@
 package main
 
 import (
-	"context"
-	"log"
-	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 	"strings"
-	"github.com/projectriff/http-gateway/transport"
 	"github.com/projectriff/http-gateway/transport/kafka"
 	"github.com/projectriff/http-gateway/pkg/handler"
-	"github.com/projectriff/http-gateway/pkg/replies_map"
+	"log"
 )
 
-func startHttpServer(producer transport.Producer, replies *replies_map.RepliesMap) *http.Server {
-	srv := &http.Server{Addr: ":8080"}
-
-	http.HandleFunc("/messages/", handler.MessageHandler(producer))
-	http.HandleFunc("/requests/", handler.RequestHandler(producer, replies, time.Second * 60))
-	http.HandleFunc("/application/status", handler.HealthHandler())
-
-	go func() {
-		if err := srv.ListenAndServe(); err != nil {
-			panic(err)
-		}
-	}()
-
-	log.Printf("Listening on %v", srv.Addr)
-	return srv
-}
-
-const CorrelationId = "correlationId"
-
 func main() {
-	// Trap signals to trigger a proper shutdown.
-	signals := make(chan os.Signal, 1)
-	signal.Notify(signals, os.Interrupt, syscall.SIGTERM, os.Kill)
-
-	// Key is correlationId, value is channel used to pass message received from main Kafka consumer loop
-	replies := replies_map.NewRepliesMap()
 
 	brokers := brokers()
 	producer, err := kafka.NewKafkaProducer(brokers)
@@ -71,15 +41,19 @@ func main() {
 	}
 	defer consumer.Close()
 
-	srv := startHttpServer(producer, replies)
+	gw := handler.New(8080, producer, consumer)
 
-	handler.ReplyHandler(signals, consumer, replies, producer)
+	closeCh := make(chan struct{})
+	gw.Run(closeCh)
+
+	// Wait for shutdown
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, os.Interrupt, syscall.SIGTERM, os.Kill)
+	<-signals
 	log.Println("Shutting Down...")
-	timeout, c := context.WithTimeout(context.Background(), 1*time.Second)
-	defer c()
-	if err := srv.Shutdown(timeout); err != nil {
-		panic(err) // failure/timeout shutting down the server gracefully
-	}
+	closeCh <- struct{}{}
+
+
 }
 
 func brokers() []string {

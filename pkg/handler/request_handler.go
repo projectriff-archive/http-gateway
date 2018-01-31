@@ -18,14 +18,10 @@ package handler
 
 import (
 	"io/ioutil"
-	"log"
 	"github.com/projectriff/function-sidecar/pkg/dispatcher"
 	"time"
-	"github.com/projectriff/http-gateway/transport"
 	"net/http"
 	"github.com/satori/go.uuid"
-	"github.com/projectriff/http-gateway/pkg/replies_map"
-	"os"
 )
 
 const (
@@ -35,11 +31,9 @@ const (
 
 var outgoingHeadersToPropagate = [...]string{ContentType}
 
-// Function RequestHandler creates an http handler that sends the http body to the producer, then waits
-// for a message on a go channel it creates for a reply (this is expected to be set by the main thread) and sends
-// that as an http response.
-func RequestHandler(producer transport.Producer, replies *replies_map.RepliesMap, timeout time.Duration) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+// Function requestHandler is an http handler that sends the http body to the producer, then waits
+// for a message on a go channel it creates for a reply and sends that as an http response.
+func (g *gateway) repliesHandler(w http.ResponseWriter, r *http.Request) {
 		topic, err := parseTopic(r, requestPath)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusNotFound)
@@ -54,12 +48,12 @@ func RequestHandler(producer transport.Producer, replies *replies_map.RepliesMap
 
 		correlationId := uuid.NewV4().String() // entropy bottleneck?
 		replyChan := make(chan dispatcher.Message)
-		replies.Put(correlationId, replyChan)
+		g.replies.Put(correlationId, replyChan)
 
 		headers := propagateIncomingHeaders(r)
 		headers[CorrelationId] = []string{correlationId}
 
-		err = producer.Send(topic, dispatcher.NewMessage(b, headers))
+		err = g.producer.Send(topic, dispatcher.NewMessage(b, headers))
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -67,46 +61,19 @@ func RequestHandler(producer transport.Producer, replies *replies_map.RepliesMap
 
 		select {
 		case reply := <-replyChan:
-			replies.Delete(correlationId)
+			g.replies.Delete(correlationId)
 			propagateOutgoingHeaders(reply, w)
 			w.Write(reply.Payload())
-		case <-time.After(timeout):
-			replies.Delete(correlationId)
+		case <-time.After(g.timeout):
+			g.replies.Delete(correlationId)
 			w.WriteHeader(404)
 		}
 	}
-}
 
 func propagateOutgoingHeaders(message dispatcher.Message, response http.ResponseWriter) {
 	for _, h := range outgoingHeadersToPropagate {
 		if vs, ok := message.Headers()[h]; ok {
 			response.Header()[h] = vs
-		}
-	}
-}
-
-func ReplyHandler(signals chan os.Signal, consumer transport.Consumer, replies *replies_map.RepliesMap, producer transport.Producer) {
-	consumerMessages := consumer.Messages()
-	producerErrors := producer.Errors()
-	for {
-		select {
-		case <-signals:
-			return
-		case msg, ok := <-consumerMessages:
-			if ok {
-				correlationId, ok := msg.Headers()[CorrelationId]
-				if ok {
-					c := replies.Get(correlationId[0])
-					if c != nil {
-						log.Printf("Sending reply %v\n", msg)
-						c <- msg
-					} else {
-						log.Printf("Did not find communication channel for correlationId %v. Timed out?", correlationId)
-					}
-				}
-			}
-		case err := <-producerErrors:
-			log.Println("Failed to send message ", err)
 		}
 	}
 }

@@ -20,7 +20,6 @@ import (
 	"io/ioutil"
 	"github.com/projectriff/function-sidecar/pkg/dispatcher"
 	"fmt"
-	"github.com/projectriff/http-gateway/transport"
 	"net/http"
 )
 
@@ -30,33 +29,32 @@ const (
 	Accept      = "Accept"
 )
 
-var incomingHeadersToPropagate = [...]string{ContentType, Accept}
-
-// Function MessageHandler creates an http handler that sends the http body to the producer, replying
+// Function messageHandler is an http handler that sends the http body to the producer, replying
 // immediately with a successful http response.
-func MessageHandler(producer transport.Producer) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		topic, err := parseTopic(r, messagePath)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusNotFound)
-			return
-		}
-
-		b, err := ioutil.ReadAll(r.Body)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		err = producer.Send(topic, dispatcher.NewMessage(b, propagateIncomingHeaders(r)))
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		fmt.Fprintf(w, "message published to topic: %s\n", topic)
+func(g *gateway) messagesHandler(w http.ResponseWriter, r *http.Request) {
+	topic, err := parseTopic(r, messagePath)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
 	}
+
+	b, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	err = g.producer.Send(topic, dispatcher.NewMessage(b, propagateIncomingHeaders(r)))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	fmt.Fprintf(w, "Message published to topic: %s\n", topic)
 }
+
+
+var incomingHeadersToPropagate = [...]string{ContentType, Accept}
 
 func propagateIncomingHeaders(request *http.Request) dispatcher.Headers {
 	header := make(dispatcher.Headers)
@@ -67,3 +65,4 @@ func propagateIncomingHeaders(request *http.Request) dispatcher.Headers {
 	}
 	return header
 }
+
