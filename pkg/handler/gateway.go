@@ -27,7 +27,7 @@ import (
 )
 
 type Gateway interface {
-	Run(stopCh chan<- struct{})
+	Run(stopCh <-chan struct{})
 }
 
 type gateway struct {
