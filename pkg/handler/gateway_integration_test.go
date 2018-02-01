@@ -18,28 +18,29 @@ package handler_test
 
 import (
 	. "github.com/onsi/ginkgo"
-//	. "github.com/onsi/gomega"
+	. "github.com/onsi/gomega"
 	"github.com/projectriff/http-gateway/pkg/handler"
 	"github.com/projectriff/http-gateway/transport/mocktransport"
 	"time"
 	"github.com/projectriff/function-sidecar/pkg/dispatcher"
 	"math/rand"
-	"bytes"
-	"log"
 	"net/http"
 	"fmt"
+	"io"
+	"bytes"
+	"github.com/stretchr/testify/mock"
 )
 
-var _ = FDescribe("HTTP Gateway", func() {
+var _ = Describe("HTTP Gateway", func() {
 	var (
-		gw           handler.Gateway
-		mockProducer *mocktransport.Producer
-		mockConsumer *mocktransport.Consumer
-		port         int
-		timeout      time.Duration
-		done chan struct{}
-		consumerMessages   chan dispatcher.Message
-		producerErrors     chan error
+		gw               handler.Gateway
+		mockProducer     *mocktransport.Producer
+		mockConsumer     *mocktransport.Consumer
+		port             int
+		timeout          time.Duration
+		done             chan struct{}
+		consumerMessages chan dispatcher.Message
+		producerErrors   chan error
 	)
 
 	BeforeEach(func() {
@@ -54,12 +55,12 @@ var _ = FDescribe("HTTP Gateway", func() {
 		var pErr <-chan error = producerErrors
 		mockProducer.On("Errors").Return(pErr)
 
-		timeout = 60 * time.Second
+		timeout = 6 * time.Second
 		done = make(chan struct{})
 	})
 
 	JustBeforeEach(func() {
-		port = 1024 + rand.Intn(32768 - 1024)
+		port = 1024 + rand.Intn(32768-1024)
 		gw = handler.New(port, mockProducer, mockConsumer, timeout)
 	})
 
@@ -67,17 +68,68 @@ var _ = FDescribe("HTTP Gateway", func() {
 		done <- struct{}{}
 	})
 
-	It("should return Ok", func() {
+	It("should request/reply OK", func() {
 		gw.Run(done)
-//		resp := mockResponseWriter.Result()
-//		Expect(resp.StatusCode).To(Equal(http.StatusOK))
 
-		client := http.Client{
-			Timeout: time.Duration(60 * time.Second),
-		}
-		req, err := http.NewRequest("POST", fmt.Sprintf("http://localhost:%v", port), bytes.NewBufferString("hello"))
-		resp, err := client.Do(req)
+		mockProducer.On("Send", "foo", mock.Anything).Return(nil).Run(func(args mock.Arguments) {
+			defer GinkgoRecover()
+			msg := args[1].(dispatcher.Message)
+			consumerMessages <- dispatcher.NewMessage([]byte("hello "+string(msg.Payload())),
+				dispatcher.Headers{handler.CorrelationId: msg.Headers()[handler.CorrelationId],
+					"Content-Type": []string{"bag/plastic"},
+				})
+			Expect(msg.Headers()["Content-Type"]).To(Equal([]string{"text/solid"}))
+			Expect(msg.Headers()["Not-Propagated-Header"]).To(BeNil())
+		})
+
+		resp := request(port, "foo", bytes.NewBufferString("world"), "Content-Type", "text/solid", "Not-Propagated-Header", "secret")
+
+		b := make([]byte, 11)
+		resp.Body.Read(b)
+
+		Expect(b).To(Equal([]byte("hello world")))
+		Expect(resp.Header.Get(handler.CorrelationId)).To(BeZero())
+		Expect(resp.Header.Get("Content-Type")).To(Equal("bag/plastic"))
+
+		defer resp.Body.Close()
+
+	})
+
+	It("should accept messages and fire&forget", func() {
+		gw.Run(done)
+
+
+		mockProducer.On("Send", "bar", mock.Anything).Return(nil).Run(func(args mock.Arguments) {
+			defer GinkgoRecover()
+			msg := args[1].(dispatcher.Message)
+			Expect(msg.Payload()).To(Equal([]byte("world")))
+			Expect(msg.Headers()["Content-Type"]).To(Equal([]string{"text/solid"}))
+			Expect(msg.Headers()["Not-Propagated-Header"]).To(BeNil())
+		})
+
+		resp := message(port, "bar", bytes.NewBufferString("world"), "Content-Type", "text/solid", "Not-Propagated-Header", "secret")
+
+		Expect(resp.StatusCode).To(Equal(200))
+
 		defer resp.Body.Close()
 
 	})
 })
+
+func request(port int, topic string, body io.Reader, headerKV ... string) *http.Response {
+	return post(port, "/requests/" + topic, body, headerKV...)
+}
+
+func message(port int, topic string, body io.Reader, headerKV ... string) *http.Response {
+	return post(port, "/messages/" + topic, body, headerKV...)
+}
+
+func post(port int, path string, body io.Reader, headerKV ... string) *http.Response {
+	client := http.Client{}
+	req, _ := http.NewRequest("POST", fmt.Sprintf("http://localhost:%v%v", port, path), body)
+	for i := 0; i < len(headerKV); i += 2 {
+		req.Header.Add(headerKV[i], headerKV[i+1])
+	}
+	resp, _ := client.Do(req)
+	return resp
+}
