@@ -17,10 +17,11 @@
 package handler
 
 import (
-	"io/ioutil"
-	dispatcher "github.com/projectriff/message-transport/pkg/message"
 	"fmt"
+	"io/ioutil"
 	"net/http"
+
+	dispatcher "github.com/projectriff/message-transport/pkg/message"
 )
 
 const (
@@ -33,7 +34,7 @@ var incomingHeadersToPropagate = [...]string{ContentType, Accept}
 
 // Function messageHandler is an http handler that sends the http body to the producer, replying
 // immediately with a successful http response.
-func(g *gateway) messagesHandler(w http.ResponseWriter, r *http.Request) {
+func (g *gateway) messagesHandler(w http.ResponseWriter, r *http.Request) {
 	topic, err := parseTopic(r, messagePath)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
@@ -64,4 +65,3 @@ func propagateIncomingHeaders(request *http.Request) dispatcher.Headers {
 	}
 	return header
 }
-

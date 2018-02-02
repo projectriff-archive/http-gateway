@@ -17,17 +17,18 @@
 package handler
 
 import (
+	"errors"
+	"io/ioutil"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"time"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/projectriff/message-transport/pkg/message"
 	"github.com/projectriff/message-transport/pkg/transport/mocktransport"
-	"net/http"
-	"io/ioutil"
-	"strings"
-	"net/http/httptest"
-	"errors"
 	"github.com/stretchr/testify/mock"
-	"github.com/projectriff/function-sidecar/pkg/dispatcher"
-	"time"
 )
 
 var _ = Describe("MessagesHandler", func() {
@@ -49,7 +50,7 @@ var _ = Describe("MessagesHandler", func() {
 		req.URL.Path = "/messages/testtopic"
 		mockResponseWriter = httptest.NewRecorder()
 		testError = errors.New(errorMessage)
-		gateway = New(8080, mockProducer, mockConsumer, 60 * time.Second)
+		gateway = New(8080, mockProducer, mockConsumer, 60*time.Second)
 	})
 
 	JustBeforeEach(func() {
@@ -146,8 +147,8 @@ var _ = Describe("MessagesHandler", func() {
 	})
 })
 
-func sentMessage(mockProducer *mocktransport.Producer) dispatcher.Message {
-	msg, ok := mockProducer.Calls[sendIndex(mockProducer)].Arguments[1].(dispatcher.Message)
+func sentMessage(mockProducer *mocktransport.Producer) message.Message {
+	msg, ok := mockProducer.Calls[sendIndex(mockProducer)].Arguments[1].(message.Message)
 	Expect(ok).To(BeTrue())
 	return msg
 }

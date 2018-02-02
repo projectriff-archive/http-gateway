@@ -17,8 +17,9 @@
 package handler
 
 import (
-	"github.com/projectriff/message-transport/pkg/message"
 	"sync"
+
+	"github.com/projectriff/message-transport/pkg/message"
 )
 
 // Type repliesMap implements a concurrent safe map of channels to send replies to, keyed by message correlationIds

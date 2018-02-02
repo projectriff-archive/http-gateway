@@ -17,15 +17,16 @@
 package main
 
 import (
+	"log"
 	"os"
 	"os/signal"
-	"syscall"
 	"strings"
-	"github.com/projectriff/message-transport/pkg/transport/kafka"
-	"github.com/projectriff/http-gateway/pkg/handler"
-	"log"
+	"syscall"
 	"time"
+
 	"github.com/bsm/sarama-cluster"
+	"github.com/projectriff/http-gateway/pkg/handler"
+	"github.com/projectriff/message-transport/pkg/transport/kafka"
 )
 
 func main() {
@@ -43,7 +44,7 @@ func main() {
 	}
 	defer consumer.Close()
 
-	gw := handler.New(8080, producer, consumer, 60 * time.Second)
+	gw := handler.New(8080, producer, consumer, 60*time.Second)
 
 	closeCh := make(chan struct{})
 	gw.Run(closeCh)
@@ -54,7 +55,6 @@ func main() {
 	<-signals
 	log.Println("Shutting Down...")
 	closeCh <- struct{}{}
-
 
 }
 

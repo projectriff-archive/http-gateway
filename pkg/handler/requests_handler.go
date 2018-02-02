@@ -18,9 +18,10 @@ package handler
 
 import (
 	"io/ioutil"
-	"github.com/projectriff/message-transport/pkg/message"
-	"time"
 	"net/http"
+	"time"
+
+	"github.com/projectriff/message-transport/pkg/message"
 	"github.com/satori/go.uuid"
 )
 
@@ -34,41 +35,41 @@ var outgoingHeadersToPropagate = [...]string{ContentType}
 // Function requestHandler is an http handler that sends the http body to the producer, then waits
 // for a message on a go channel it creates for a reply and sends that as an http response.
 func (g *gateway) requestsHandler(w http.ResponseWriter, r *http.Request) {
-		topic, err := parseTopic(r, requestPath)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusNotFound)
-			return
-		}
-
-		b, err := ioutil.ReadAll(r.Body)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		correlationId := uuid.NewV4().String() // entropy bottleneck?
-		replyChan := make(chan message.Message)
-		g.replies.Put(correlationId, replyChan)
-
-		headers := propagateIncomingHeaders(r)
-		headers[CorrelationId] = []string{correlationId}
-
-		err = g.producer.Send(topic, message.NewMessage(b, headers))
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		select {
-		case reply := <-replyChan:
-			g.replies.Delete(correlationId)
-			propagateOutgoingHeaders(reply, w)
-			w.Write(reply.Payload())
-		case <-time.After(g.timeout):
-			g.replies.Delete(correlationId)
-			w.WriteHeader(404)
-		}
+	topic, err := parseTopic(r, requestPath)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
 	}
+
+	b, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	correlationId := uuid.NewV4().String() // entropy bottleneck?
+	replyChan := make(chan message.Message)
+	g.replies.Put(correlationId, replyChan)
+
+	headers := propagateIncomingHeaders(r)
+	headers[CorrelationId] = []string{correlationId}
+
+	err = g.producer.Send(topic, message.NewMessage(b, headers))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	select {
+	case reply := <-replyChan:
+		g.replies.Delete(correlationId)
+		propagateOutgoingHeaders(reply, w)
+		w.Write(reply.Payload())
+	case <-time.After(g.timeout):
+		g.replies.Delete(correlationId)
+		w.WriteHeader(404)
+	}
+}
 
 func propagateOutgoingHeaders(message message.Message, response http.ResponseWriter) {
 	for _, h := range outgoingHeadersToPropagate {

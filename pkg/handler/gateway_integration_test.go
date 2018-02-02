@@ -17,17 +17,18 @@
 package handler_test
 
 import (
+	"bytes"
+	"fmt"
+	"io"
+	"math/rand"
+	"net/http"
+	"time"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/projectriff/http-gateway/pkg/handler"
-	"github.com/projectriff/message-transport/pkg/transport/mocktransport"
-	"time"
 	"github.com/projectriff/message-transport/pkg/message"
-	"math/rand"
-	"net/http"
-	"fmt"
-	"io"
-	"bytes"
+	"github.com/projectriff/message-transport/pkg/transport/mocktransport"
 	"github.com/stretchr/testify/mock"
 )
 
@@ -98,7 +99,6 @@ var _ = Describe("HTTP Gateway", func() {
 	It("should accept messages and fire&forget", func() {
 		gw.Run(done)
 
-
 		mockProducer.On("Send", "bar", mock.Anything).Return(nil).Run(func(args mock.Arguments) {
 			defer GinkgoRecover()
 			msg := args[1].(message.Message)
@@ -116,15 +116,15 @@ var _ = Describe("HTTP Gateway", func() {
 	})
 })
 
-func doRequest(port int, topic string, body io.Reader, headerKV ... string) *http.Response {
-	return post(port, "/requests/" + topic, body, headerKV...)
+func doRequest(port int, topic string, body io.Reader, headerKV ...string) *http.Response {
+	return post(port, "/requests/"+topic, body, headerKV...)
 }
 
-func doMessage(port int, topic string, body io.Reader, headerKV ... string) *http.Response {
-	return post(port, "/messages/" + topic, body, headerKV...)
+func doMessage(port int, topic string, body io.Reader, headerKV ...string) *http.Response {
+	return post(port, "/messages/"+topic, body, headerKV...)
 }
 
-func post(port int, path string, body io.Reader, headerKV ... string) *http.Response {
+func post(port int, path string, body io.Reader, headerKV ...string) *http.Response {
 	client := http.Client{}
 	req, _ := http.NewRequest("POST", fmt.Sprintf("http://localhost:%v%v", port, path), body)
 	for i := 0; i < len(headerKV); i += 2 {
