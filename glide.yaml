@@ -1,9 +1,5 @@
 package: github.com/projectriff/http-gateway
 import:
-- package: github.com/projectriff/function-sidecar
-  version: master
-  subpackages:
-  - pkg/dispatcher
 - package: github.com/projectriff/message-transport
   version: master
   subpackages:
