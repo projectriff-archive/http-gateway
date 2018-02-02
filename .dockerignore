@@ -2,4 +2,3 @@
 !cmd/
 !vendor/
 !pkg/
-!transport/

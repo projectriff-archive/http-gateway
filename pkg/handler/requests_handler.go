@@ -18,7 +18,7 @@ package handler
 
 import (
 	"io/ioutil"
-	"github.com/projectriff/function-sidecar/pkg/dispatcher"
+	"github.com/projectriff/message-transport/pkg/message"
 	"time"
 	"net/http"
 	"github.com/satori/go.uuid"
@@ -47,13 +47,13 @@ func (g *gateway) requestsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		correlationId := uuid.NewV4().String() // entropy bottleneck?
-		replyChan := make(chan dispatcher.Message)
+		replyChan := make(chan message.Message)
 		g.replies.Put(correlationId, replyChan)
 
 		headers := propagateIncomingHeaders(r)
 		headers[CorrelationId] = []string{correlationId}
 
-		err = g.producer.Send(topic, dispatcher.NewMessage(b, headers))
+		err = g.producer.Send(topic, message.NewMessage(b, headers))
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -70,7 +70,7 @@ func (g *gateway) requestsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-func propagateOutgoingHeaders(message dispatcher.Message, response http.ResponseWriter) {
+func propagateOutgoingHeaders(message message.Message, response http.ResponseWriter) {
 	for _, h := range outgoingHeadersToPropagate {
 		if vs, ok := message.Headers()[h]; ok {
 			response.Header()[h] = vs

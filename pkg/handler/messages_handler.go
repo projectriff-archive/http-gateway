@@ -18,7 +18,7 @@ package handler
 
 import (
 	"io/ioutil"
-	"github.com/projectriff/function-sidecar/pkg/dispatcher"
+	dispatcher "github.com/projectriff/message-transport/pkg/message"
 	"fmt"
 	"net/http"
 )

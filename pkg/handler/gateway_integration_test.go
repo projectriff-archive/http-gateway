@@ -20,9 +20,9 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/projectriff/http-gateway/pkg/handler"
-	"github.com/projectriff/http-gateway/transport/mocktransport"
+	"github.com/projectriff/message-transport/pkg/transport/mocktransport"
 	"time"
-	"github.com/projectriff/function-sidecar/pkg/dispatcher"
+	"github.com/projectriff/message-transport/pkg/message"
 	"math/rand"
 	"net/http"
 	"fmt"
@@ -39,7 +39,7 @@ var _ = Describe("HTTP Gateway", func() {
 		port             int
 		timeout          time.Duration
 		done             chan struct{}
-		consumerMessages chan dispatcher.Message
+		consumerMessages chan message.Message
 		producerErrors   chan error
 	)
 
@@ -47,8 +47,8 @@ var _ = Describe("HTTP Gateway", func() {
 		mockProducer = new(mocktransport.Producer)
 		mockConsumer = new(mocktransport.Consumer)
 
-		consumerMessages = make(chan dispatcher.Message, 1)
-		var cMsg <-chan dispatcher.Message = consumerMessages
+		consumerMessages = make(chan message.Message, 1)
+		var cMsg <-chan message.Message = consumerMessages
 		mockConsumer.On("Messages").Return(cMsg)
 
 		producerErrors = make(chan error, 0)
@@ -73,16 +73,16 @@ var _ = Describe("HTTP Gateway", func() {
 
 		mockProducer.On("Send", "foo", mock.Anything).Return(nil).Run(func(args mock.Arguments) {
 			defer GinkgoRecover()
-			msg := args[1].(dispatcher.Message)
-			consumerMessages <- dispatcher.NewMessage([]byte("hello "+string(msg.Payload())),
-				dispatcher.Headers{handler.CorrelationId: msg.Headers()[handler.CorrelationId],
+			msg := args[1].(message.Message)
+			consumerMessages <- message.NewMessage([]byte("hello "+string(msg.Payload())),
+				message.Headers{handler.CorrelationId: msg.Headers()[handler.CorrelationId],
 					"Content-Type": []string{"bag/plastic"},
 				})
 			Expect(msg.Headers()["Content-Type"]).To(Equal([]string{"text/solid"}))
 			Expect(msg.Headers()["Not-Propagated-Header"]).To(BeNil())
 		})
 
-		resp := request(port, "foo", bytes.NewBufferString("world"), "Content-Type", "text/solid", "Not-Propagated-Header", "secret")
+		resp := doRequest(port, "foo", bytes.NewBufferString("world"), "Content-Type", "text/solid", "Not-Propagated-Header", "secret")
 
 		b := make([]byte, 11)
 		resp.Body.Read(b)
@@ -101,13 +101,13 @@ var _ = Describe("HTTP Gateway", func() {
 
 		mockProducer.On("Send", "bar", mock.Anything).Return(nil).Run(func(args mock.Arguments) {
 			defer GinkgoRecover()
-			msg := args[1].(dispatcher.Message)
+			msg := args[1].(message.Message)
 			Expect(msg.Payload()).To(Equal([]byte("world")))
 			Expect(msg.Headers()["Content-Type"]).To(Equal([]string{"text/solid"}))
 			Expect(msg.Headers()["Not-Propagated-Header"]).To(BeNil())
 		})
 
-		resp := message(port, "bar", bytes.NewBufferString("world"), "Content-Type", "text/solid", "Not-Propagated-Header", "secret")
+		resp := doMessage(port, "bar", bytes.NewBufferString("world"), "Content-Type", "text/solid", "Not-Propagated-Header", "secret")
 
 		Expect(resp.StatusCode).To(Equal(200))
 
@@ -116,11 +116,11 @@ var _ = Describe("HTTP Gateway", func() {
 	})
 })
 
-func request(port int, topic string, body io.Reader, headerKV ... string) *http.Response {
+func doRequest(port int, topic string, body io.Reader, headerKV ... string) *http.Response {
 	return post(port, "/requests/" + topic, body, headerKV...)
 }
 
-func message(port int, topic string, body io.Reader, headerKV ... string) *http.Response {
+func doMessage(port int, topic string, body io.Reader, headerKV ... string) *http.Response {
 	return post(port, "/messages/" + topic, body, headerKV...)
 }
 

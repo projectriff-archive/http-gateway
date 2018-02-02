@@ -17,13 +17,13 @@
 package handler
 
 import (
-	"github.com/projectriff/function-sidecar/pkg/dispatcher"
+	"github.com/projectriff/message-transport/pkg/message"
 	"sync"
 )
 
 // Type repliesMap implements a concurrent safe map of channels to send replies to, keyed by message correlationIds
 type repliesMap struct {
-	m    map[string]chan<- dispatcher.Message
+	m    map[string]chan<- message.Message
 	lock sync.RWMutex
 }
 
@@ -33,19 +33,18 @@ func (replies *repliesMap) Delete(key string) {
 	delete(replies.m, key)
 }
 
-func (replies *repliesMap) Get(key string) chan<- dispatcher.Message {
+func (replies *repliesMap) Get(key string) chan<- message.Message {
 	replies.lock.RLock()
 	defer replies.lock.RUnlock()
 	return replies.m[key]
 }
 
-func (replies *repliesMap) Put(key string, value chan<- dispatcher.Message) {
+func (replies *repliesMap) Put(key string, value chan<- message.Message) {
 	replies.lock.Lock()
 	defer replies.lock.Unlock()
 	replies.m[key] = value
 }
 
 func newRepliesMap() *repliesMap {
-	return &repliesMap{make(map[string]chan<- dispatcher.Message), sync.RWMutex{}}
+	return &repliesMap{make(map[string]chan<- message.Message), sync.RWMutex{}}
 }
-

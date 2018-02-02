@@ -21,22 +21,23 @@ import (
 	"os/signal"
 	"syscall"
 	"strings"
-	"github.com/projectriff/http-gateway/transport/kafka"
+	"github.com/projectriff/message-transport/pkg/transport/kafka"
 	"github.com/projectriff/http-gateway/pkg/handler"
 	"log"
 	"time"
+	"github.com/bsm/sarama-cluster"
 )
 
 func main() {
 
 	brokers := brokers()
-	producer, err := kafka.NewKafkaProducer(brokers)
+	producer, err := kafka.NewProducer(brokers)
 	if err != nil {
 		panic(err)
 	}
 	defer producer.Close()
 
-	consumer, err := kafka.NewKafkaConsumer(brokers, "gateway", []string{"replies"})
+	consumer, err := kafka.NewConsumer(brokers, "gateway", []string{"replies"}, cluster.NewConfig())
 	if err != nil {
 		panic(err)
 	}

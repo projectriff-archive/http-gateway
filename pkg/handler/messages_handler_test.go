@@ -19,7 +19,7 @@ package handler
 import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/projectriff/http-gateway/transport/mocktransport"
+	"github.com/projectriff/message-transport/pkg/transport/mocktransport"
 	"net/http"
 	"io/ioutil"
 	"strings"

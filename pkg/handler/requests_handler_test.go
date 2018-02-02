@@ -22,13 +22,13 @@ import (
 
 	"github.com/stretchr/testify/mock"
 	"io/ioutil"
-	"github.com/projectriff/http-gateway/transport/mocktransport"
+	"github.com/projectriff/message-transport/pkg/transport/mocktransport"
 	"net/http/httptest"
 	"strings"
 	"net/http"
 	"errors"
-	"github.com/projectriff/function-sidecar/pkg/dispatcher"
 	"time"
+	"github.com/projectriff/message-transport/pkg/message"
 )
 
 var _ = Describe("RequestsHandler", func() {
@@ -41,7 +41,7 @@ var _ = Describe("RequestsHandler", func() {
 		mockResponseWriter *httptest.ResponseRecorder
 		req                *http.Request
 		testError          error
-		consumerMessages   chan dispatcher.Message
+		consumerMessages   chan message.Message
 		producerErrors     chan error
 		timeout            time.Duration
 		gateway            *gateway
@@ -57,8 +57,8 @@ var _ = Describe("RequestsHandler", func() {
 		testError = errors.New(errorMessage)
 		timeout = time.Second * 60
 
-		consumerMessages = make(chan dispatcher.Message, 1)
-		var cMsg <-chan dispatcher.Message = consumerMessages
+		consumerMessages = make(chan message.Message, 1)
+		var cMsg <-chan message.Message = consumerMessages
 		mockConsumer.On("Messages").Return(cMsg)
 
 		producerErrors = make(chan error, 0)
@@ -112,9 +112,9 @@ var _ = Describe("RequestsHandler", func() {
 		Context("when sending succeeds", func() {
 			BeforeEach(func() {
 				mockProducer.On("Send", mock.AnythingOfType("string"), mock.Anything).Run(func(args mock.Arguments) {
-					msg, ok := args[1].(dispatcher.Message)
+					msg, ok := args[1].(message.Message)
 					Expect(ok).To(BeTrue())
-					consumerMessages <- dispatcher.NewMessage([]byte(""), msg.Headers())
+					consumerMessages <- message.NewMessage([]byte(""), msg.Headers())
 				}).Return(nil)
 			})
 
@@ -185,12 +185,12 @@ var _ = Describe("RequestsHandler", func() {
 		Context("when sending succeeds but the producer reports an error before the reply comes back", func() {
 			BeforeEach(func() {
 				mockProducer.On("Send", mock.AnythingOfType("string"), mock.Anything).Run(func(args mock.Arguments) {
-					msg, ok := args[1].(dispatcher.Message)
+					msg, ok := args[1].(message.Message)
 					Expect(ok).To(BeTrue())
 
 					producerErrors <- testError
 
-					consumerMessages <- dispatcher.NewMessage([]byte(""), msg.Headers())
+					consumerMessages <- message.NewMessage([]byte(""), msg.Headers())
 				}).Return(nil)
 			})
 
@@ -204,9 +204,9 @@ var _ = Describe("RequestsHandler", func() {
 			BeforeEach(func() {
 				timeout = 10 * time.Millisecond
 				mockProducer.On("Send", mock.AnythingOfType("string"), mock.Anything).Run(func(args mock.Arguments) {
-					headers := make(dispatcher.Headers)
+					headers := make(message.Headers)
 					headers["correlationId"] = []string{""}
-					consumerMessages <- dispatcher.NewMessage([]byte(""), headers)
+					consumerMessages <- message.NewMessage([]byte(""), headers)
 				}).Return(nil)
 			})
 
