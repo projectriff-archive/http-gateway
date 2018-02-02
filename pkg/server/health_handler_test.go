@@ -14,10 +14,35 @@
  * limitations under the License.
  */
 
-package handler
+package server
 
-import "net/http"
+import (
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 
-func healthHandler(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte(`{"status":"UP"}`))
-}
+	"net/http/httptest"
+	"net/http"
+)
+
+var _ = Describe("HealthHandler", func() {
+	var (
+		mockResponseWriter *httptest.ResponseRecorder
+		req                *http.Request
+	)
+
+	BeforeEach(func() {
+		req = httptest.NewRequest("GET", "http://example.com", nil)
+		req.URL.Path = "/health"
+		mockResponseWriter = httptest.NewRecorder()
+
+	})
+
+	JustBeforeEach(func() {
+		healthHandler(mockResponseWriter, req)
+	})
+
+	It("should return Ok", func() {
+		resp := mockResponseWriter.Result()
+		Expect(resp.StatusCode).To(Equal(http.StatusOK))
+	})
+})

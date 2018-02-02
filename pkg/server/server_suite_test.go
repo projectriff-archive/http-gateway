@@ -1,4 +1,4 @@
-package handler_test
+package server_test
 
 import (
 	"testing"
@@ -9,5 +9,5 @@ import (
 
 func TestHandler(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Handler Suite")
+	RunSpecs(t, "Server Suite")
 }

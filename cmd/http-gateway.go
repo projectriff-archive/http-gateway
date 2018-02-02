@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"github.com/bsm/sarama-cluster"
-	"github.com/projectriff/http-gateway/pkg/handler"
+	"github.com/projectriff/http-gateway/pkg/server"
 	"github.com/projectriff/message-transport/pkg/transport/kafka"
 )
 
@@ -44,17 +44,17 @@ func main() {
 	}
 	defer consumer.Close()
 
-	gw := handler.New(8080, producer, consumer, 60*time.Second)
+	gw := server.New(8080, producer, consumer, 60*time.Second)
 
-	closeCh := make(chan struct{})
-	gw.Run(closeCh)
+	done := make(chan struct{})
+	gw.Run(done)
 
 	// Wait for shutdown
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, os.Interrupt, syscall.SIGTERM, os.Kill)
 	<-signals
 	log.Println("Shutting Down...")
-	closeCh <- struct{}{}
+	close(done)
 
 }
 

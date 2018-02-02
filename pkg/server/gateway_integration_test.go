@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package handler_test
+package server_test
 
 import (
 	"bytes"
@@ -26,7 +26,7 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/projectriff/http-gateway/pkg/handler"
+	"github.com/projectriff/http-gateway/pkg/server"
 	"github.com/projectriff/message-transport/pkg/message"
 	"github.com/projectriff/message-transport/pkg/transport/mocktransport"
 	"github.com/stretchr/testify/mock"
@@ -34,7 +34,7 @@ import (
 
 var _ = Describe("HTTP Gateway", func() {
 	var (
-		gw               handler.Gateway
+		gw               server.Gateway
 		mockProducer     *mocktransport.Producer
 		mockConsumer     *mocktransport.Consumer
 		port             int
@@ -62,7 +62,7 @@ var _ = Describe("HTTP Gateway", func() {
 
 	JustBeforeEach(func() {
 		port = 1024 + rand.Intn(32768-1024)
-		gw = handler.New(port, mockProducer, mockConsumer, timeout)
+		gw = server.New(port, mockProducer, mockConsumer, timeout)
 	})
 
 	AfterEach(func() {
@@ -76,7 +76,7 @@ var _ = Describe("HTTP Gateway", func() {
 			defer GinkgoRecover()
 			msg := args[1].(message.Message)
 			consumerMessages <- message.NewMessage([]byte("hello "+string(msg.Payload())),
-				message.Headers{handler.CorrelationId: msg.Headers()[handler.CorrelationId],
+				message.Headers{server.CorrelationId: msg.Headers()[server.CorrelationId],
 					"Content-Type": []string{"bag/plastic"},
 				})
 			Expect(msg.Headers()["Content-Type"]).To(Equal([]string{"text/solid"}))
@@ -89,7 +89,7 @@ var _ = Describe("HTTP Gateway", func() {
 		resp.Body.Read(b)
 
 		Expect(b).To(Equal([]byte("hello world")))
-		Expect(resp.Header.Get(handler.CorrelationId)).To(BeZero())
+		Expect(resp.Header.Get(server.CorrelationId)).To(BeZero())
 		Expect(resp.Header.Get("Content-Type")).To(Equal("bag/plastic"))
 
 		defer resp.Body.Close()

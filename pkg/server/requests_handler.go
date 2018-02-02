@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package handler
+package server
 
 import (
 	"io/ioutil"
@@ -50,6 +50,7 @@ func (g *gateway) requestsHandler(w http.ResponseWriter, r *http.Request) {
 	correlationId := uuid.NewV4().String() // entropy bottleneck?
 	replyChan := make(chan message.Message)
 	g.replies.Put(correlationId, replyChan)
+	defer g.replies.Delete(correlationId)
 
 	headers := propagateIncomingHeaders(r)
 	headers[CorrelationId] = []string{correlationId}
@@ -62,11 +63,9 @@ func (g *gateway) requestsHandler(w http.ResponseWriter, r *http.Request) {
 
 	select {
 	case reply := <-replyChan:
-		g.replies.Delete(correlationId)
 		propagateOutgoingHeaders(reply, w)
 		w.Write(reply.Payload())
 	case <-time.After(g.timeout):
-		g.replies.Delete(correlationId)
 		w.WriteHeader(404)
 	}
 }

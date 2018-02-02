@@ -1,5 +1,5 @@
 /*
- * Copyright 2017 the original author or authors.
+ * Copyright 2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,16 +14,10 @@
  * limitations under the License.
  */
 
-package handler
+package server
 
-import (
-	"fmt"
-	"net/http"
-)
+import "net/http"
 
-func parseTopic(r *http.Request, path string) (string, error) {
-	if len(r.URL.Path) < len(path) || r.URL.Path[:len(path)] != path {
-		return "", fmt.Errorf("Unknown path: %s", r.URL.Path)
-	}
-	return r.URL.Path[len(path):], nil
+func healthHandler(w http.ResponseWriter, r *http.Request) {
+	w.Write([]byte(`{"status":"UP"}`))
 }

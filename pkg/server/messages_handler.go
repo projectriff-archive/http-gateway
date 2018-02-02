@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-package handler
+package server
 
 import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
 
-	dispatcher "github.com/projectriff/message-transport/pkg/message"
+	"github.com/projectriff/message-transport/pkg/message"
 )
 
 const (
@@ -47,7 +47,7 @@ func (g *gateway) messagesHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = g.producer.Send(topic, dispatcher.NewMessage(b, propagateIncomingHeaders(r)))
+	err = g.producer.Send(topic, message.NewMessage(b, propagateIncomingHeaders(r)))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -56,8 +56,8 @@ func (g *gateway) messagesHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "Message published to topic: %s\n", topic)
 }
 
-func propagateIncomingHeaders(request *http.Request) dispatcher.Headers {
-	header := make(dispatcher.Headers)
+func propagateIncomingHeaders(request *http.Request) message.Headers {
+	header := make(message.Headers)
 	for _, h := range incomingHeadersToPropagate {
 		if vs, ok := request.Header[h]; ok {
 			header[h] = vs
