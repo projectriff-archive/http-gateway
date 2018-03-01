@@ -1,3 +1,6 @@
+
+*The contents of this repository has moved to https://github.com/projectriff/riff/tree/master/http-gateway*
+
 = HTTP Gateway image:https://ci.projectriff.io/api/v1/teams/main/pipelines/riff/jobs/build-http-gateway-container/badge[HTTP Gateway Status, link=https://ci.projectriff.io/teams/main/pipelines/riff/jobs/build-http-gateway-container/builds/latest]
 
 == Purpose
